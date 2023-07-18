@@ -15,6 +15,7 @@ in the source distribution for its full text.
 #include <stdlib.h>
 #include <string.h>
 
+#include "BacktraceScreen.h"
 #include "CRT.h"
 #include "CategoriesPanel.h"
 #include "CommandScreen.h"
@@ -595,6 +596,20 @@ static Htop_Reaction actionShowLocks(State* st) {
    return HTOP_REFRESH | HTOP_REDRAW_BAR;
 }
 
+static Htop_Reaction actionBacktrace(State *st) {
+   const Process* process = (Process*) Panel_getSelected((Panel*)st->mainPanel);
+   if (!process)
+      return HTOP_OK;
+
+   BacktraceScreen *backtrace_screen = BacktraceScreen_new(process);
+   InfoScreen_run((InfoScreen *) backtrace_screen);
+
+   BacktraceScreen_delete((Object *)backtrace_screen);
+   clear();
+   CRT_enableDelay();
+   return HTOP_REFRESH | HTOP_REDRAW_BAR;
+}
+
 static Htop_Reaction actionStrace(State* st) {
    if (!Action_writeableProcess(st))
       return HTOP_OK;
@@ -679,6 +694,7 @@ static const struct {
 #if (defined(HAVE_LIBHWLOC) || defined(HAVE_AFFINITY))
    { .key = "      a: ", .roInactive = true, .info = "set CPU affinity" },
 #endif
+   { .key = "      b: ", .roInactive = false, .info = "show the backtrace of user process" },
    { .key = "      e: ", .roInactive = false, .info = "show process environment" },
    { .key = "      i: ", .roInactive = true,  .info = "set IO priority" },
    { .key = "      l: ", .roInactive = true,  .info = "list open files with lsof" },
@@ -918,6 +934,7 @@ void Action_setBindings(Htop_Action* keys) {
    keys['\\'] = actionIncFilter;
    keys[']'] = actionHigherPriority;
    keys['a'] = actionSetAffinity;
+   keys['b'] = actionBacktrace;
    keys['c'] = actionTagAllChildren;
    keys['e'] = actionShowEnvScreen;
    keys['h'] = actionHelp;
