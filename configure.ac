@@ -526,6 +526,40 @@ if test "x$enable_unwind" = xno; then
    AC_SEARCH_LIBS([backtrace], [execinfo])
 fi
 
+AC_ARG_ENABLE([unwind-ptrace],
+              [AS_HELP_STRING([--enable-unwind-ptrace],
+              [enable unwind-ptrace support for printing backtraces through ptrace(2); requires libunwind-ptrace @<:@default=check@:>@])],
+              [],
+              [enable_unwind_ptrace=check])
+case "$enable_unwind_ptrace" in
+   check)
+      enable_unwind_ptrace=yes
+      if test "$enable_static" = yes; then
+         AC_CHECK_LIB([lzma], [lzma_index_buffer_decode])
+      fi
+      AC_CHECK_HEADERS([libunwind-ptrace.h], [], [
+         old_CFLAGS="$CFLAGS"
+         CFLAGS="$CFLAGS -I/usr/include/libunwind"
+         AC_CHECK_HEADERS([libunwind/libunwind-ptrace.h], [], [
+            enable_unwind_ptrace=no
+            CFLAGS="$old_CFLAGS"
+         ])
+      ])
+      ;;
+   no)
+      ;;
+   yes)
+      AC_CHECK_LIB([unwind-ptrace], [_UPT_create], [], [AC_MSG_ERROR([can not find required library libunwind-ptrace])], [-lunwind-generic])
+      AC_CHECK_LIB([unwind-generic], [_UPT_create], [], [AC_MSG_ERROR([can not find required library libunwind-generic])])
+      AC_CHECK_HEADERS([libunwind-ptrace.h], [], [
+         CFLAGS="$CFLAGS -I/usr/include/libunwind"
+         AC_CHECK_HEADERS([libunwind/libunwind-ptrace.h], [], [AC_MSG_ERROR([can not find required header file libunwind-ptrace.h])])
+      ])
+      ;;
+   *)
+      AC_MSG_ERROR([bad value '$enable_unwind_ptrace' for --enable-unwind_ptrace])
+      ;;
+esac
 
 AC_ARG_ENABLE([hwloc],
               [AS_HELP_STRING([--enable-hwloc],
@@ -860,6 +894,7 @@ AC_MSG_RESULT([
   unicode:                   $enable_unicode
   affinity:                  $enable_affinity
   unwind:                    $enable_unwind
+  unwind-ptrace:             $enable_unwind_ptrace
   hwloc:                     $enable_hwloc
   debug:                     $enable_debug
   static:                    $enable_static
