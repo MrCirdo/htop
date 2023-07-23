@@ -526,6 +526,49 @@ if test "x$enable_unwind" = xno; then
    AC_SEARCH_LIBS([backtrace], [execinfo])
 fi
 
+AC_ARG_ENABLE([backtrace],
+              [AS_HELP_STRING([--enable-backtrace=<unwind-ptrace>],
+              [enable printing backtraces.])],
+              [],
+              [enable_backtrace=no])
+if test "x$enable_backtrace" = xyes; then
+   case $my_htop_platform in
+      linux)
+         enable_backtrace=unwind-ptrace
+         ;;
+      *)
+         AC_MSG_ERROR([backtrace feature not implemented for the '$my_htop_platform' platform])
+         ;;
+   esac
+fi
+
+case "$enable_backtrace" in
+   no)
+      ;;
+   unwind-ptrace)
+      AC_CHECK_LIB([unwind-ptrace], [_UPT_create], [], [AC_MSG_ERROR([can not find required library libunwind-ptrace and libunwind-generic])], [-lunwind-generic])
+      AC_CHECK_LIB([unwind-generic], [_UPT_create], [], [AC_MSG_ERROR([can not find required library libunwind-generic])])
+      AC_CHECK_HEADERS([libunwind-ptrace.h], [], [
+         CPPFLAGS="$CPPFLAGS -I/usr/include/libunwind"
+         AC_CHECK_HEADERS([libunwind-ptrace.h], [], [AC_MSG_ERROR([can not find required header file libunwind-ptrace.h])])
+      ])
+      ;;
+   *)
+      AC_MSG_ERROR([bad value '$enable_backtrace' for --enable-backtrace])
+      ;;
+esac
+if test "x$enable_backtrace" != xno; then
+   AC_DEFINE([HAVE_BACKTRACE], [1], [Define if the backtrace feature is enabled])
+fi
+
+if test "x$enable_backtrace" = xunwind-ptrace; then
+   AC_COMPILE_IFELSE([AC_LANG_SOURCE([[
+   #include <libunwind-ptrace.h>
+   #ifndef unw_get_elf_filename
+   # error 'unw_get_elf_filename' not defined
+   #endif
+   ]])], [AC_DEFINE([HAVE_LIBUNWIND_ELF_FILENAME], [1], [Define if libunwind has unw_get_elf_filename])], [])
+fi
 
 AC_ARG_ENABLE([hwloc],
               [AS_HELP_STRING([--enable-hwloc],
@@ -847,6 +890,7 @@ AC_MSG_RESULT([
   unicode:                   $enable_unicode
   affinity:                  $enable_affinity
   unwind:                    $enable_unwind
+  backtrace:                 $enable_backtrace
   hwloc:                     $enable_hwloc
   debug:                     $enable_debug
   static:                    $enable_static
