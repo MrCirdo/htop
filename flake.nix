@@ -1,6 +1,6 @@
 {
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixos-23.05";
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-23.11";
     flake-utils.url = "github:numtide/flake-utils";
   };
   outputs = {
@@ -11,14 +11,17 @@
     flake-utils.lib.eachDefaultSystem (
       system: let
         pkgs = import nixpkgs {inherit system;};
+        libunwindDebug = pkgs.libunwind.overrideAttrs(old: {
+          configureFlags = old.configureFlags ++ ["--enable-debug"];
+        });
+
       in rec {
         formatter = nixpkgs.legacyPackages.${system}.alejandra;
         devShell = pkgs.mkShell {
           buildInputs = with pkgs; [
             autoconf
-            libunwind
             ncurses
-          ];
+          ] ++ [libunwindDebug];
         };
       }
     );

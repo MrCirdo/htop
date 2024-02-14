@@ -596,19 +596,26 @@ static Htop_Reaction actionShowLocks(State* st) {
    return HTOP_REFRESH | HTOP_REDRAW_BAR;
 }
 
+#if (defined(HTOP_LINUX) && defined(HAVE_LIBUNWIND_PTRACE))
 static Htop_Reaction actionBacktrace(State *st) {
    const Process* process = (Process*) Panel_getSelected((Panel*)st->mainPanel);
    if (!process)
       return HTOP_OK;
 
-   BacktraceScreen *backtrace_screen = BacktraceScreen_new(process);
-   InfoScreen_run((InfoScreen *) backtrace_screen);
+   BacktracePanel *panel = BacktracePanel_new(process);
+   ScreenManager *screenManager = ScreenManager_new(NULL, st->host, st, false);
+   ScreenManager_add(screenManager, (Panel *)panel, 0);
 
-   BacktraceScreen_delete((Object *)backtrace_screen);
-   clear();
-   CRT_enableDelay();
-   return HTOP_REFRESH | HTOP_REDRAW_BAR;
+   Panel *lastFocusPanel = NULL;
+   int lastKey = 0;
+
+   ScreenManager_run(screenManager, &lastFocusPanel, &lastKey, NULL);
+   BacktracePanel_delete((Object *)panel);
+   ScreenManager_delete(screenManager);
+
+   return HTOP_REFRESH | HTOP_REDRAW_BAR | HTOP_UPDATE_PANELHDR;
 }
+#endif
 
 static Htop_Reaction actionStrace(State* st) {
    if (!Action_writeableProcess(st))
@@ -694,7 +701,10 @@ static const struct {
 #if (defined(HAVE_LIBHWLOC) || defined(HAVE_AFFINITY))
    { .key = "      a: ", .roInactive = true, .info = "set CPU affinity" },
 #endif
+
+#if (defined(HTOP_LINUX) && defined(HAVE_LIBUNWIND_PTRACE))
    { .key = "      b: ", .roInactive = false, .info = "show the backtrace of user process" },
+#endif
    { .key = "      e: ", .roInactive = false, .info = "show process environment" },
    { .key = "      i: ", .roInactive = true,  .info = "set IO priority" },
    { .key = "      l: ", .roInactive = true,  .info = "list open files with lsof" },
@@ -934,7 +944,9 @@ void Action_setBindings(Htop_Action* keys) {
    keys['\\'] = actionIncFilter;
    keys[']'] = actionHigherPriority;
    keys['a'] = actionSetAffinity;
+#if (defined(HTOP_LINUX) && defined(HAVE_LIBUNWIND_PTRACE))
    keys['b'] = actionBacktrace;
+#endif
    keys['c'] = actionTagAllChildren;
    keys['e'] = actionShowEnvScreen;
    keys['h'] = actionHelp;

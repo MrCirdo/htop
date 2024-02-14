@@ -1,44 +1,39 @@
 #ifndef HEADER_BacktraceScreen
 #define HEADER_BacktraceScreen
-/*
-htop - BacktraceSceen.h
-(C) 2023 Htop Dev Team
-Released under the GNU GPLv2+, see the COPYING file
-in the source distribution for its full text.
-*/
 
+#include "config.h" // IWYU pragma: keep
+
+#if (defined(HTOP_LINUX) && defined(HAVE_LIBUNWIND_PTRACE))
+
+#include "Panel.h"
+#include "Process.h"
 #include <stddef.h>
 
-#include "InfoScreen.h"
-#include "Object.h"
-#include "Process.h"
-
-#define MAX_FRAME 256
-#define MAX_BACKTRACE 1024
+typedef struct BacktracePanel_ {
+   Panel super;
+   const Process* process;
+   char* error;
+} BacktracePanel;
 
 typedef struct Frame_ {
-   size_t nb;
+   Object super;
+   int index;
    size_t address;
-   char* function;
-   char* path;
+   size_t offset;
+   char* functionName;
+   bool isSignalFrame;
+
+   bool isError;
+   char *error;
 } Frame;
 
-typedef struct Backtrace_ {
-   pid_t pid;
-   pid_t tgid;
-   Frame frames[MAX_FRAME];
-   size_t nbFrames;
-} Backtrace;
+BacktracePanel* BacktracePanel_new(const Process* process);
+void BacktracePanel_delete(Object* object);
+Frame* Frame_new(void);
 
-typedef struct BacktraceScreen_ {
-   InfoScreen super;
-   Backtrace* backtraces;
-   size_t nbBacktraces;
-} BacktraceScreen;
+extern const PanelClass BacktracePanel_class;
+extern const ObjectClass Frame_class;
 
-extern const InfoScreenClass BacktraceScreen_class;
-
-BacktraceScreen* BacktraceScreen_new(const Process* process);
-void BacktraceScreen_delete(Object* cast);
+#endif /* HTOP_LINUX && HAVE_LIBUNWIND_PTRACE */
 
 #endif
