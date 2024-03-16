@@ -570,6 +570,45 @@ if test "x$enable_backtrace" = xunwind-ptrace; then
    ]])], [AC_DEFINE([HAVE_LIBUNWIND_ELF_FILENAME], [1], [Define if libunwind has unw_get_elf_filename])], [])
 fi
 
+AC_ARG_ENABLE([demangling],
+              [AS_HELP_STRING([--enable-demangling],
+                              [enable demangling support for backtraces @<:@default=check@:>@])],
+              [],
+              [enable_demangling=no])
+case "$enable_demangling" in
+   check|yes|libiberty)
+      enable_demangling=libiberty
+      AC_CHECK_LIB([iberty], [cplus_demangle], [], [AC_MSG_ERROR([can not find required library iberty])])
+      AC_CHECK_HEADERS([demangle.h], [], [
+         old_CFLAGS="$CFLAGS"
+         CFLAGS="$CFLAGS -I/usr/include/libiberty"
+         AC_CHECK_HEADERS([libiberty/demangle.h], [], [
+            enable_demangling=no
+            CFLAGS="$old_CFLAGS"
+         ])
+      ])
+      ;;
+   no)
+      ;;
+   *)
+      AC_MSG_ERROR([bad value '$enable_demangling' for --enable-iberty])
+      ;;
+esac
+
+case $enable_demangling in
+   check)
+      enable_demangling=no
+      ;;
+   yes)
+      AC_MSG_ERROR([cannot find any library for the backend supported by --enable-demangling])
+      ;;
+   no)
+      ;;
+   *)
+      AC_DEFINE([HAVE_DEMANGLING], [1], [Define to 1 if the demangling is supported])
+      ;;
+esac
+
 AC_ARG_ENABLE([hwloc],
               [AS_HELP_STRING([--enable-hwloc],
               [enable hwloc support for CPU affinity; disables affinity support; requires libhwloc @<:@default=no@:>@])],
@@ -891,6 +930,7 @@ AC_MSG_RESULT([
   affinity:                  $enable_affinity
   unwind:                    $enable_unwind
   backtrace:                 $enable_backtrace
+  demangling:                $enable_demangling
   hwloc:                     $enable_hwloc
   debug:                     $enable_debug
   static:                    $enable_static
