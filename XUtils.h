@@ -131,6 +131,9 @@ int compareRealNumbers(double a, double b);
    nonnegative. */
 double sumPositiveValues(const double* array, size_t count);
 
+/* Count the number of digit */
+size_t countDigit(size_t n, size_t base);
+
 /* Returns the number of trailing zero bits */
 #if defined(HAVE_BUILTIN_CTZ)
 static inline unsigned int countTrailingZeros(unsigned int x) {

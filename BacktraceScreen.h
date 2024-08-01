@@ -14,14 +14,31 @@ in the source distribution for its full text.
 #include "Panel.h"
 #include "Process.h"
 
+typedef struct BacktracePanelPrintingHelper_ {
+   size_t maxAddressLength;
+   size_t maxDemangledFunctionNameLength;
+   size_t maxFunctionNameLength;
+   size_t maxNumberFrameLength;
+   size_t maxObjectPathLength;
+} BacktracePanelPrintingHelper;
+
+typedef enum BacktraceScreenDisplayOptions_ {
+   NO_OPTION = 0,
+   DEMANGLE_NAME_FUNCTION = 1 << 0,
+   SHOW_FULL_PATH_OBJECT = 1 << 1,
+} BacktraceScreenDisplayOptions;
+
 typedef struct BacktracePanel_ {
    Panel super;
    const Process* process;
    bool error;
+   BacktracePanelPrintingHelper printingHelper;
+   BacktraceScreenDisplayOptions displayOptions;
 } BacktracePanel;
 
 typedef struct BacktraceFrame_ {
    Object super;
+
    int index;
    size_t address;
    size_t offset;
@@ -29,6 +46,8 @@ typedef struct BacktraceFrame_ {
    char* demangleFunctionName;
    char* objectPath;
    bool isSignalFrame;
+
+   const BacktracePanel* backtracePanel;
 } BacktraceFrame;
 
 BacktracePanel* BacktracePanel_new(const Process* process);

@@ -743,6 +743,8 @@ void Platform_getBacktrace(Vector* frames, const Process* process, char** error)
       unw_word_t offset;
       unw_word_t pc;
 
+      BacktraceFrame* frame = BacktraceFrame_new();
+      frame->index = index;
       if (unw_get_proc_name(&cursor, procName, sizeof(procName), &offset) == 0) {
          ret = unw_get_reg(&cursor, UNW_REG_IP, &pc);
          if (ret < 0) {
@@ -750,8 +752,6 @@ void Platform_getBacktrace(Vector* frames, const Process* process, char** error)
             break;
          }
 
-         BacktraceFrame* frame = BacktraceFrame_new();
-         frame->index = index;
          frame->address = pc;
          frame->offset = offset;
          frame->isSignalFrame = unw_is_signal_frame(&cursor);
@@ -771,8 +771,10 @@ void Platform_getBacktrace(Vector* frames, const Process* process, char** error)
          }
 #endif
 
-         Vector_add(frames, (Object*)frame);
+      } else {
+         frame->functionName = xStrdup("???");
       }
+      Vector_add(frames, (Object*)frame);
       index++;
    } while (unw_step(&cursor) > 0);
 
