@@ -35,7 +35,14 @@ typedef struct BacktracePanel_ {
    bool error;
    BacktracePanelPrintingHelper printingHelper;
    BacktraceScreenDisplayOptions displayOptions;
+   const Settings *settings;
 } BacktracePanel;
+
+typedef enum BacktraceObjectType_ {
+   UNKNOW_OBJECT_TYPE,
+   BINARY_OBJECT_TYPE,
+   LIBRARY_OBJECT_TYPE
+} BacktraceObjectType;
 
 typedef struct BacktraceFrame_ {
    Object super;
@@ -45,8 +52,12 @@ typedef struct BacktraceFrame_ {
    size_t offset;
    char* functionName;
    char* demangleFunctionName;
-   char* objectPath;
    bool isSignalFrame;
+
+   char* objectPath;
+   char* objectName;
+   BacktraceObjectType objectType;
+   bool objectExists;
 
    const BacktracePanel* backtracePanel;
 } BacktraceFrame;

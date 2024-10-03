@@ -128,17 +128,9 @@ static void Frame_display(const Object* super, RichString* out) {
 
    xAsprintf(&functionName, "%s+0x%lx", functionName, frame->offset);
 
-   char *fullObjectPath = frame->objectPath;
-   char *objectPath = NULL;
-   if (fullObjectPath != NULL && (displayOptions & SHOW_FULL_PATH_OBJECT) == SHOW_FULL_PATH_OBJECT) {
-      size_t n = 0;
-      char** splittedBySlash = String_split(fullObjectPath, '/', &n);
-      objectPath = xStrdup(splittedBySlash[n - 1]);
-      String_freeArray(splittedBySlash);
-   }
-
-   if (objectPath == NULL && fullObjectPath == NULL) {
-      objectPath = xStrdup("");
+   char *objectDisplayed = frame->objectName;
+   if ((displayOptions & SHOW_FULL_PATH_OBJECT) == SHOW_FULL_PATH_OBJECT) {
+      objectDisplayed = frame->objectPath;
    }
 
    char* line = NULL;
@@ -146,13 +138,17 @@ static void Frame_display(const Object* super, RichString* out) {
                        (int)printingHelper->maxNumberFrameLength, frame->index,
                        (int)printingHelper->maxAddressLength - (int)strlen("0x"), frame->address,
                        (int)maxFunctionNameLength, functionName,
-                       (int)printingHelper->maxObjectPathLength, objectPath ? objectPath : fullObjectPath);
+                       (int)printingHelper->maxObjectPathLength, objectDisplayed ? objectDisplayed : "");
 
-   RichString_appendnAscii(out, CRT_colors[DEFAULT_COLOR], line, len);
-
-   if (objectPath) {
-      free(objectPath);
+   int color = CRT_colors[DEFAULT_COLOR];
+   if (frame->backtracePanel->settings->highlightDeletedExe && !frame->objectExists) {
+      if (frame->objectType == LIBRARY_OBJECT_TYPE) {
+         color = CRT_colors[PROCESS_TAG];
+      } else {
+         color = CRT_colors[FAILED_READ];
+      }
    }
+   RichString_appendnAscii(out, color, line, len);
 
    if (functionName) {
       free(functionName);
@@ -181,10 +177,14 @@ static void Frame_delete(Object* object) {
       free(this->objectPath);
    }
 
+   if (this->objectName) {
+      free(this->objectName);
+   }
+
    free(this);
 }
 
-static void BacktracePanel_setError(BacktracePanel* this, char* error) {
+static void BacktracePanel_setError(BacktracePanel* this, const char* const error) {
    assert(error != NULL);
    assert(this->error == false);
 
@@ -192,7 +192,10 @@ static void BacktracePanel_setError(BacktracePanel* this, char* error) {
    Panel_prune(super);
 
    Vector* lines = this->super.items;
-   Vector_delete(lines);
+   if (lines) {
+      Vector_delete(lines);
+   }
+
    this->super.items = Vector_new(Class(ListItem), true, DEFAULT_SIZE);
    Panel_set(super, 0, (Object*)ListItem_new(error, 0));
 }
@@ -254,8 +257,6 @@ static void BacktracePanel_populateFrames(BacktracePanel* this) {
    header->index = BACKTRACE_FRAME_HEADER_INDEX;
    Vector_add(lines, (Object*)header);
 
-   this->super.needsRedraw = true;
-
    Platform_getBacktrace(lines, this->process, &error);
    if (error) {
       BacktracePanel_setError(this, error);
@@ -275,6 +276,7 @@ BacktracePanel* BacktracePanel_new(const Process* process, const Settings* setti
    this->printingHelper.maxFunctionNameLength = 0;
    this->printingHelper.maxDemangledFunctionNameLength = 0;
    this->displayOptions = DEMANGLE_NAME_FUNCTION;
+   this->settings = settings;
 
    Panel* super = (Panel*) this;
    Panel_init(super, 1, 1, 1, 1, Class(BacktraceFrame), true,
@@ -307,6 +309,9 @@ BacktraceFrame* BacktraceFrame_new(void) {
    this->functionName = NULL;
    this->demangleFunctionName = NULL;
    this->objectPath = NULL;
+   this->objectName = NULL;
+   this->objectExists = false;
+   this->objectType = UNKNOW_OBJECT_TYPE;
    this->isSignalFrame = false;
    return this;
 }

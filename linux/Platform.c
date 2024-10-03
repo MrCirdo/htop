@@ -5,6 +5,7 @@ Released under the GNU GPLv2+, see the COPYING file
 in the source distribution for its full text.
 */
 
+#include "Hashtable.h"
 #include "config.h" // IWYU pragma: keep
 
 #include "linux/Platform.h"
@@ -26,6 +27,7 @@ in the source distribution for its full text.
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <limits.h>
+#include <elf.h>
 
 #include "BacktraceScreen.h"
 #include "BatteryMeter.h"
@@ -691,6 +693,50 @@ bool Platform_getNetworkIO(NetworkIOData* data) {
    return true;
 }
 
+static void Platform_bactraceSetExistenceStatusOfObject(BacktraceFrame *frame) {
+   if (!frame->objectPath || !frame->objectName) {
+      frame->objectType = UNKNOW_OBJECT_TYPE;
+      return;
+   }
+
+   int fd = open(frame->objectPath, O_RDONLY);
+   int errno_open = errno;
+
+   if (errno_open == ENOENT) {
+      frame->objectExists = false;
+   }
+
+   // if There is an error, a simple test is used to determine if it's library or binary.
+   if (fd < 0) {
+      if (String_contains_i(frame->objectName, "so", false)) {
+         frame->objectType = LIBRARY_OBJECT_TYPE;
+      } else {
+         frame->objectType = BINARY_OBJECT_TYPE;
+      }
+   } else {
+      if (lseek(fd, 0x10, SEEK_SET) < 0) {
+         goto close_file;
+      }
+      char e_type[2] = { 0 };
+      if (read(fd, e_type, 2) < 0) {
+         goto close_file;
+      }
+      switch (e_type[0]) {
+         case ET_DYN:
+            frame->objectType = LIBRARY_OBJECT_TYPE;
+            break;
+         case ET_EXEC:
+            frame->objectType = BINARY_OBJECT_TYPE;
+            break;
+         default:
+            frame->objectType = UNKNOW_OBJECT_TYPE;
+            break;
+      }
+   close_file:
+      close(fd);
+   }
+}
+
 void Platform_getBacktrace(Vector* frames, const Process* process, char** error) {
 #ifdef HAVE_LIBUNWIND_PTRACE
    unw_addr_space_t addrSpace = unw_create_addr_space(&_UPT_accessors, 0);
@@ -745,6 +791,7 @@ void Platform_getBacktrace(Vector* frames, const Process* process, char** error)
 
       BacktraceFrame* frame = BacktraceFrame_new();
       frame->index = index;
+      frame->objectExists = true;
       if (unw_get_proc_name(&cursor, procName, sizeof(procName), &offset) == 0) {
          ret = unw_get_reg(&cursor, UNW_REG_IP, &pc);
          if (ret < 0) {
@@ -768,6 +815,11 @@ void Platform_getBacktrace(Vector* frames, const Process* process, char** error)
          char elfFileName[2048] = { 0 };
          if (unw_get_elf_filename(&cursor, elfFileName, sizeof(elfFileName), &offsetElfFileName) == 0) {
             frame->objectPath = xStrdup(elfFileName);
+
+            size_t n = 0;
+            char** splittedBySlash = String_split(frame->objectPath, '/', &n);
+            frame->objectName = xStrdup(splittedBySlash[n - 1]);
+            String_freeArray(splittedBySlash);
          }
 #endif
 
@@ -777,6 +829,30 @@ void Platform_getBacktrace(Vector* frames, const Process* process, char** error)
       Vector_add(frames, (Object*)frame);
       index++;
    } while (unw_step(&cursor) > 0);
+
+   int size = Vector_size(frames);
+   Hashtable *cache = Hashtable_new(size, false);
+   for (int i = 0; i < size; i++) {
+      BacktraceFrame *frame = (BacktraceFrame *)Vector_get(frames, i);
+      assert(frame);
+      if (!frame->objectPath) {
+         continue;
+      }
+
+      int key = 5381;
+      for (size_t j = 0; frame->objectPath[j]; j++) {
+         key = ((key << 5) + key) + frame->objectPath[j];
+      }
+      BacktraceFrame *cached_frame = Hashtable_get(cache, key);
+      if (cached_frame) {
+         frame->objectType = cached_frame->objectType;
+         frame->objectExists = cached_frame->objectExists;
+      } else {
+         Platform_bactraceSetExistenceStatusOfObject(frame);
+         Hashtable_put(cache, key, frame);
+      }
+   }
+   Hashtable_delete(cache);
 
 context_error:
    _UPT_destroy(context);
