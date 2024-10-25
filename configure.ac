@@ -774,7 +774,7 @@ case "$enable_backtrace" in
       ;;
    unwind-ptrace)
       AC_CHECK_LIB([unwind-ptrace], [_UPT_create], [], [AC_MSG_ERROR([can not find required library libunwind-ptrace and libunwind-generic])], [-lunwind-generic])
-      AC_CHECK_LIB([unwind-generic], [_UPT_create], [], [AC_MSG_ERROR([can not find required library libunwind-generic])])
+      AC_CHECK_LIB([unwind-generic], [_U_dyn_register], [], [AC_MSG_ERROR([can not find required library libunwind-generic])])
       AC_CHECK_HEADERS([libunwind-ptrace.h], [], [
          CPPFLAGS="$CPPFLAGS -I/usr/include/libunwind"
          AC_CHECK_HEADERS([libunwind-ptrace.h], [], [AC_MSG_ERROR([can not find required header file libunwind-ptrace.h])])
